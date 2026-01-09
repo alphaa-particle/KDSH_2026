@@ -4,6 +4,8 @@ import os
 import numpy as np
 from torch.utils.data import DataLoader, random_split
 from sklearn.metrics import accuracy_score, f1_score
+from sklearn.model_selection import train_test_split
+from torch.utils.data import Subset
 
 # Import your custom modules
 from src.data_loader import NovelBackstoryDataset, collate_fn
@@ -32,7 +34,7 @@ def main():
     # Hyperparameters
     BATCH_SIZE = 4         # Keep small for 4060
     EPOCHS = 10            
-    LEARNING_RATE = 5e-6   # Lower LR to prevent oscillation
+    LEARNING_RATE = 5e-5   # Lower LR to prevent oscillation
     WEIGHT_DECAY = 1e-2    # Regularization
     VAL_SPLIT = 0.2        
 
@@ -50,35 +52,67 @@ def main():
     full_train_ds = NovelBackstoryDataset(NOVELS_DIR, TRAIN_CSV, tokenizer)
     
     # Create Train/Validation Split
-    train_size = int((1 - VAL_SPLIT) * len(full_train_ds))
-    val_size = len(full_train_ds) - train_size
-    train_ds, val_ds = random_split(full_train_ds, [train_size, val_size])
-    
-    print(f"Data Split: {len(train_ds)} Training samples | {len(val_ds)} Validation samples")
+# ... inside main() ...
 
-    # ---------------------------------------------------------
-    # 3. Calculate Class Weights (The Fix)
-    # ---------------------------------------------------------
-    all_labels = [item['labels'].item() for item in train_ds]
-    num_0 = all_labels.count(0)
-    num_1 = all_labels.count(1)
+    # Load Full Training Data
+    full_train_ds = NovelBackstoryDataset(NOVELS_DIR, TRAIN_CSV, tokenizer)
     
-    print(f"Training Distribution: Class 0 (Inconsistent): {num_0} | Class 1 (Consistent): {num_1}")
+    # --- NEW: STRATIFIED SPLIT ---
+    # 1. Extract labels from the dataframe for stratification
+    # We need to handle the string labels ('consistent'/'inconsistent') just like data_loader does
+    labels_list = full_train_ds.data['label'].tolist()
     
-    # Inverse frequency weights
-    if num_0 > 0 and num_1 > 0:
-        total = num_0 + num_1
-        weight_0 = (1 / num_0) * (total / 2.0)
-        weight_1 = (1 / num_1) * (total / 2.0)
+    # 2. Generate Indices ensuring the class distribution is preserved
+    train_idx, val_idx = train_test_split(
+        np.arange(len(full_train_ds)),
+        test_size=VAL_SPLIT,
+        shuffle=True,
+        stratify=labels_list, # This ensures the ratio is kept!
+        random_state=42       # Fixed seed so your results are reproducible
+    )
+    
+    # 3. Create PyTorch Subsets using those indices
+    train_ds = Subset(full_train_ds, train_idx)
+    val_ds = Subset(full_train_ds, val_idx)
+    
+    print(f"Stratified Split: {len(train_ds)} Training samples | {len(val_ds)} Validation samples")
+    # -----------------------------
+
+# ---------------------------------------------------------
+    # 3. Calculate Class Weights (Updated for Subset)
+    # ---------------------------------------------------------
+    # We need to look up the labels using the indices we just created
+    train_labels = [full_train_ds.data.iloc[i]['label'] for i in train_idx]
+    
+    # Helper to clean labels (reuse logic from data loader implicitly or just count strings)
+    # Assuming labels in CSV are strings like "consistent" / "inconsistent"
+    # We just count them to get the ratio.
+    num_consistent = 0
+    num_inconsistent = 0
+    
+    for lbl in train_labels:
+        # distinct cleaning logic similar to data_loader
+        lbl_clean = str(lbl).strip().lower()
+        if lbl_clean in ['consistent', 'entailment', '1']:
+            num_consistent += 1
+        elif lbl_clean in ['inconsistent', 'contradiction', 'contradict', '0']:
+            num_inconsistent += 1
+            
+    print(f"Training Distribution: Inconsistent: {num_inconsistent} | Consistent: {num_consistent}")
+    
+    if num_inconsistent > 0 and num_consistent > 0:
+        total = num_inconsistent + num_consistent
+        # Heuristic: weight = (total) / (number_of_class * 2)
+        weight_0 = total / (2.0 * num_inconsistent) # Weight for Inconsistent (0)
+        weight_1 = total / (2.0 * num_consistent)   # Weight for Consistent (1)
         class_weights = [weight_0, weight_1]
     else:
-        # Fallback if split is bad (e.g. 0 samples of one class)
         class_weights = [1.0, 1.0]
         
     print(f"Using Class Weights: {class_weights}")
 
     # ---------------------------------------------------------
-    # 4. Initialize Model ONCE
+    # 4. Initialize Model 
     # ---------------------------------------------------------
     print("Initializing Model...")
     model = BDHConsistencyClassifier(config_path=CONFIG_PATH)
@@ -99,8 +133,16 @@ def main():
     test_loader = DataLoader(test_ds, batch_size=BATCH_SIZE, collate_fn=collate_fn)
 
     # ---------------------------------------------------------
-    # 5. Training Loop
+    # 5. Training Loop and Sanity Check
     # ---------------------------------------------------------
+
+    print("\n--- SANITY CHECK ---")
+    sample_batch = next(iter(train_loader))
+    print(f"Sample Input IDs: {sample_batch['input_ids'][0][:10]}") # Should look like [101, 2054, ...]
+    print(f"Sample Attention Mask: {sample_batch['attention_mask'][0][:10]}") # Should look like [1, 1, 1, ...]
+    print(f"Sample Label: {sample_batch['labels'][0]}")
+    print("--------------------\n")
+
     print(f"\nStarting training for {EPOCHS} epochs...")
     
     best_val_acc = 0.0
@@ -133,6 +175,8 @@ def main():
             best_val_acc = acc
             torch.save(model.state_dict(), "best_model.pth")
             print(">>> New Best Model Saved!")
+    # ... inside main(), replace the loop with this: ...
+    
 
     # ---------------------------------------------------------
     # 6. Final Prediction

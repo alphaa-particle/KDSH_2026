@@ -1,6 +1,7 @@
 import torch
 import pandas as pd
 import os
+import re
 from torch.utils.data import Dataset
 from torch.nn.utils.rnn import pad_sequence
 
@@ -15,16 +16,30 @@ class NovelBackstoryDataset(Dataset):
         self.max_len = max_len
         self.novel_cache = {} 
 
+    def _clean_text(self, text):
+        """Fixes common encoding artifacts in the dataset."""
+        if not isinstance(text, str):
+            return ""
+        # Fix Windows-1252 / UTF-8 mixups common in this dataset
+        text = text.replace("â€”", "—")
+        text = text.replace("â€™", "'")
+        text = text.replace("â€œ", '"')
+        text = text.replace("â€", '"')
+        text = text.replace("Ã©", "é")
+        text = text.replace("ChÃ¢teau", "Château")
+        return text.strip()
+
     def _read_novel(self, filename):
         if filename not in self.novel_cache:
+            # Handle potentially missing extensions
             path = os.path.join(self.novels_dir, filename)
             if not os.path.exists(path): 
-                # Fallback: Try checking if the file exists without .txt extension or vice versa
                 if path.endswith('.txt') and os.path.exists(path[:-4]):
                     path = path[:-4]
                 elif not path.endswith('.txt') and os.path.exists(path + ".txt"):
                     path = path + ".txt"
                 else:
+                    # Return empty string if book not found so code doesn't crash
                     print(f"Warning: Novel file not found at {path}")
                     return ""
                     
@@ -38,23 +53,36 @@ class NovelBackstoryDataset(Dataset):
     def __getitem__(self, idx):
         row = self.data.iloc[idx]
         
-        # --- FIX 1: Map 'book_name' to filename ---
-        novel_filename = row['book_name']
+        # 1. Get Metadata
+        character = self._clean_text(str(row.get('char', '')))
+        caption = self._clean_text(str(row.get('caption', '')))
         
-        # Ensure it ends with .txt (assuming your files on disk are .txt)
+        # 2. Get and Clean Content (The Backstory)
+        raw_content = row['content']
+        backstory = self._clean_text(str(raw_content))
+        
+        # 3. Construct Rich Input
+        # Format: "[CLS] Character: <Name> | Topic: <Caption> | Claim: <Backstory> [SEP] <Novel Text>"
+        # This tells the model WHO and WHAT to look for.
+        
+        # Handle empty captions gracefully
+        if caption and caption.lower() != 'nan':
+            combined_input = f"Character: {character} | Topic: {caption} | Claim: {backstory}"
+        else:
+            combined_input = f"Character: {character} | Claim: {backstory}"
+
+        # 4. Load Novel Context
+        novel_filename = row['book_name']
         if not str(novel_filename).endswith('.txt'):
             novel_filename = str(novel_filename) + ".txt"
-
-        # --- FIX 2: Map 'content' to backstory ---
-        # We use 'content' based on your screenshot. 
-        backstory = row['content']
-        
+            
         novel_text = self._read_novel(novel_filename)
         
+        # 5. Tokenize
         inputs = self.tokenizer(
-            str(backstory), # Ensure string
-            str(novel_text),
-            truncation=True,
+            combined_input,     # The specific claim (Context)
+            novel_text,         # The evidence (Novel)
+            truncation=True,    # Truncate if too long
             max_length=self.max_len,
             padding="max_length",
             return_tensors="pt"
@@ -63,32 +91,26 @@ class NovelBackstoryDataset(Dataset):
         item = {
             "input_ids": inputs["input_ids"].squeeze(0),
             "attention_mask": inputs["attention_mask"].squeeze(0),
-            # Map 'id' from your CSV to story_id
-            "story_id": row['id'] 
+            "story_id": row.get('id', idx) # Use 'id' from CSV
         }
 
-# ... inside __getitem__ ...
+        # 6. Handle Labels
         if 'label' in row:
             raw_label = row['label']
-            
             if isinstance(raw_label, str):
                 raw_label = raw_label.strip().lower()
-                # Map standard NLI labels to 0/1
-                if raw_label in ['consistent', 'entailment']:
+                # Map dataset specific strings to 0/1
+                if raw_label in ['consistent', 'entailment', '1']:
                     label_val = 1
-                elif raw_label in ['inconsistent', 'contradiction', 'contradict']:
+                elif raw_label in ['inconsistent', 'contradiction', 'contradict', '0']:
                     label_val = 0
                 else:
-                    try:
-                        label_val = int(float(raw_label))
-                    except ValueError:
-                        print(f"Warning: Unknown label '{raw_label}'. Defaulting to 0.")
-                        label_val = 0
+                    label_val = 0 # Default to inconsistent if unsure
             else:
                 label_val = int(raw_label)
-        
-            item['labels'] = torch.tensor(label_val, dtype=torch.long)
 
+            item['labels'] = torch.tensor(label_val, dtype=torch.long)
+            
         return item
 
 def collate_fn(batch):
