@@ -4,7 +4,9 @@ import json
 from bdh import BDH, BDHConfig
 
 class BDHConsistencyClassifier(nn.Module):
-    def __init__(self, config_path):
+
+    
+    def __init__(self, config_path, class_weights=None):
         super().__init__()
         
         try:
@@ -23,7 +25,7 @@ class BDHConsistencyClassifier(nn.Module):
         )
 
         self.encoder = BDH(self.config)
-        
+        self.class_weights = class_weights
         self.classifier = nn.Sequential(
             nn.Linear(self.config.n_embd, self.config.n_embd),
             nn.ReLU(),
@@ -47,8 +49,13 @@ class BDHConsistencyClassifier(nn.Module):
         # 4. Calculate Loss
         loss = None
         if labels is not None:
-            loss_fct = nn.CrossEntropyLoss()
-            # Logits: (Batch, 2), Labels: (Batch)
+            # Check if weights exist
+            if self.class_weights is not None:
+                weight_tensor = torch.tensor(self.class_weights).to(input_ids.device)
+                loss_fct = nn.CrossEntropyLoss(weight=weight_tensor)
+            else:
+                loss_fct = nn.CrossEntropyLoss()
+                
             loss = loss_fct(logits, labels)
             
         return logits, loss
