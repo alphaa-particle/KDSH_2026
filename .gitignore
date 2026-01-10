@@ -1,10 +1,6 @@
-# Ignore the virtual environment
-venv/
-env/
-
-# Ignore Python compiled files
+# .gitignore
+checkpoints/
+*.pth
 __pycache__/
-*.pyc
-
-# Ignore system files
-.DS_Store
+venv/
+my_novel_db/
