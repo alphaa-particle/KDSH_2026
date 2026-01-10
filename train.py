@@ -6,7 +6,7 @@ import pandas as pd
 import chromadb
 from chromadb.utils import embedding_functions
 import os
-import csv  # <--- NEW IMPORT
+import csv
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, f1_score, recall_score
 
@@ -16,13 +16,14 @@ from bdh import BDHTokenizer
 
 # --- CONFIGURATION ---
 BATCH_SIZE = 4
-EPOCHS = 15          # You can increase this now to see long-term trends
+EPOCHS = 40          # Set high, Early Stopping will cut it short!
+PATIENCE = 3          # Stop if Val Loss doesn't improve for 3 epochs
 LEARNING_RATE = 2e-5
 MAX_SEQ_LEN = 512
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 DB_PATH = "./my_novel_db"
 CSV_PATH = r"C:\Users\vaibh\Desktop\KDSH_Solution_2026\data\train.csv"
-LOG_FILE = "training_log.csv"  # <--- NEW LOG FILE NAME
+LOG_FILE = "training_log.csv"
 
 # --- 1. DATASET CLASS ---
 class ConsistencyDataset(Dataset):
@@ -164,12 +165,11 @@ def train():
     config.vocab_size = tokenizer.vocab_size 
     model = BDH(config).to(DEVICE)
     
-    # --- WEIGHTED LOSS SETUP ---
+    # --- WEIGHTED LOSS ---
     class_weights = torch.ones(config.vocab_size).to(DEVICE)
     id_cons = tokenizer.encode("consistent", add_special_tokens=False)[0]
     id_incons = tokenizer.encode("inconsistent", add_special_tokens=False)[0]
-    
-    class_weights[id_incons] = 2.5  # Keep your working weight
+    class_weights[id_incons] = 2.5 
     class_weights[id_cons] = 1.0
     
     criterion = nn.CrossEntropyLoss(weight=class_weights)
@@ -178,61 +178,82 @@ def train():
     if not os.path.exists("checkpoints"):
         os.makedirs("checkpoints")
 
-    # --- LOGGING SETUP ---
     print(f"Creating log file: {LOG_FILE}")
     with open(LOG_FILE, mode='w', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(["Epoch", "Train_Loss", "Val_Loss", "Val_Acc", "Val_Recall", "Val_F1"])
 
+    # --- TRACKING VARIABLES ---
     best_f1 = 0.0
+    best_val_loss = float('inf') # Needed for tie-breaking
+    
+    # EARLY STOPPING VARS
+    lowest_val_loss = float('inf') # The absolute lowest loss seen so far
+    patience_counter = 0
 
-    print("--- Starting Training ---")
+    print("--- Starting Training (with Early Stopping) ---")
+    
     for epoch in range(EPOCHS):
         model.train()
         total_train_loss = 0
         
         for i, batch in enumerate(train_loader):
             optimizer.zero_grad()
-            
             input_ids = batch['input_ids'].to(DEVICE)
             targets = batch['target'].view(-1).to(DEVICE)
-            
             logits, _ = model(input_ids)
             last_token_logits = logits[:, -1, :]
-            
             loss = criterion(last_token_logits, targets)
             loss.backward()
             optimizer.step()
-            
             total_train_loss += loss.item()
-            
-            if i % 20 == 0:
-                print(f"Epoch {epoch+1} | Batch {i} | Loss: {loss.item():.4f}")
 
         # --- VALIDATION ---
         print(f"Epoch {epoch+1} Training Done. Validating...")
         avg_train_loss = total_train_loss / len(train_loader)
-        
         val_loss, val_acc, val_f1, val_recall = evaluate(model, val_loader, tokenizer, DEVICE)
         
         print(f"📊 REPORT Epoch {epoch+1}:")
         print(f"   Train Loss: {avg_train_loss:.4f}")
         print(f"   Val Loss:   {val_loss:.4f}")
-        print(f"   Val Acc:    {val_acc*100:.2f}%")
         print(f"   Val Recall: {val_recall:.4f}")
         print(f"   Val F1:     {val_f1:.4f}")
+        print(f"   Val Acc:     {val_acc:.4f}")
 
-        # --- SAVE TO CSV LOG ---
+        # --- LOGGING ---
         with open(LOG_FILE, mode='a', newline='') as f:
             writer = csv.writer(f)
             writer.writerow([epoch + 1, avg_train_loss, val_loss, val_acc, val_recall, val_f1])
-            print(f"   (Metrics saved to {LOG_FILE})")
 
+# --- SAVE BEST MODEL (Criteria: Highest Accuracy) ---
         if val_f1 > best_f1:
             best_f1 = val_f1
+            best_val_loss = val_loss
             torch.save(model.state_dict(), "checkpoints/bdh_best_model.pth")
-            print("   ✅ New Best Model Saved!")
+            print(f"   ✅ New Best Model Saved! (Highest Accuracy: {val_f1*100:.2f}%)")
         
+        # Tie-breaker: Same Accuracy but lower loss is better
+        elif val_f1 == best_f1 and val_loss < best_val_loss:
+            best_val_loss = val_loss
+            torch.save(model.state_dict(), "checkpoints/bdh_best_model.pth")
+            print(f"   ✅ New Best Model Saved! (Tie-Breaker: Lower Loss)")
+
+        # --- EARLY STOPPING CHECK (Criteria: Val Loss) ---
+        if val_loss < lowest_val_loss:
+            lowest_val_loss = val_loss
+            patience_counter = 0 # Reset counter because we improved
+            print("   📉 Val Loss Improved. Resetting patience.")
+        else:
+            patience_counter += 1
+            print(f"   ⚠️ Val Loss did not improve. Patience: {patience_counter}/{PATIENCE}")
+            
+            if patience_counter >= PATIENCE:
+                print("\n🛑 EARLY STOPPING TRIGGERED!")
+                print("   The model has stopped improving. Ending training now.")
+                print(f"   Best Model F1: {best_f1:.4f} (Saved in checkpoints/bdh_best_model.pth)")
+                break # Exit the loop!
+        
+        # Save epoch checkpoint anyway
         torch.save(model.state_dict(), f"checkpoints/bdh_epoch_{epoch+1}.pth")
 
 if __name__ == "__main__":
