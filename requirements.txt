@@ -1,0 +1,33 @@
+# -------- Core ML --------
+torch==2.2.2
+numpy==1.26.4
+scipy==1.11.4
+scikit-learn==1.4.2
+
+# -------- NLP / LLM --------
+transformers==4.41.2
+tokenizers==0.19.1
+sentence-transformers==2.7.0
+huggingface-hub==0.23.2
+regex==2024.5.15
+
+# -------- RAG / Vector DB --------
+chromadb==0.5.3
+faiss-cpu==1.8.0
+langchain==0.2.7
+langchain-community==0.2.7
+langchain-core==0.2.18
+langchain-text-splitters==0.2.1
+
+# -------- Data --------
+pandas==2.2.2
+pyarrow==15.0.2
+
+# -------- Utilities --------
+tqdm==4.66.4
+requests==2.32.3
+python-dotenv==1.0.1
+pydantic==2.7.1
+
+# -------- Optional (logging / monitoring) --------
+rich==13.7.1

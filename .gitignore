@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+
+# Large ML artifacts (DO NOT PUSH)
+checkpoints/
+my_novel_db/
+*.pth
+*.sqlite3
+
+# OS junk
+.DS_Store
+.ipynb_checkpoints/
+
+# Env
+.env
+venv/
+
+
