@@ -1,4 +1,4 @@
-# Copyrighth 2025 Pathway Technology, Inc.
+# Copyright 2025 Pathway Technology, Inc.
 
 import dataclasses
 import math
@@ -14,8 +14,8 @@ class BDHConfig:
     n_embd: int = 256
     dropout: float = 0.1
     n_head: int = 4
-    mlp_internal_dim_multiplier: int = 4
-    vocab_size: int = 30522  # e.g., BERT tokenizer vocab size
+    mlp_internal_dim_multiplier: int = 128
+    vocab_size: int = 256
 
 
 def get_freqs(n, theta, dtype):
@@ -95,7 +95,6 @@ class BDH(nn.Module):
         self.lm_head = nn.Parameter(
             torch.zeros((D, config.vocab_size)).normal_(std=0.02)
         )
-        self.lm_gate = nn.Parameter(torch.zeros((D, 1)).normal_(std=0.02))
 
         self.apply(self._init_weights)
 

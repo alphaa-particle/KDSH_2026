@@ -1,0 +1,13 @@
+# Ignore virtual environment
+venv/
+__pycache__/
+*.pyc
+
+# Ignore large datasets and databases
+# data/
+# my_novel_db/
+# indexes/
+
+# # Ignore large model checkpoints (Too big for GitHub)
+# checkpoints/
+# *.pt

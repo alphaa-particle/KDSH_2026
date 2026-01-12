@@ -8,7 +8,7 @@ NOVELS = {
     "In Search of the Castaways": r"C:\\Users\\vaibh\\Desktop\\KDSH_Solution_2026\\data\\novels\\In Search of the Castaways.txt",
     "The Count of Monte Cristo": r"C:\\Users\\vaibh\\Desktop\\KDSH_Solution_2026\\data\\novels\\The Count of Monte Cristo.txt"
 }
-DB_PATH = "./my_novel_db"
+DB_PATH = "./my_novel_db_1"  # Changed path to avoid overwriting previous DB
 
 
 def create_vector_db():
@@ -30,8 +30,8 @@ def create_vector_db():
 
     # 4. Initialize Splitter (Keeps paragraphs together)
     splitter = RecursiveCharacterTextSplitter(
-        chunk_size=500,    # ~3-4 paragraphs per chunk
-        chunk_overlap=50,  # overlap to maintain context
+        chunk_size=2500,    # ~3-4 paragraphs per chunk
+        chunk_overlap=500,  # overlap to maintain context
         separators=["\n\n", "\n", ".", " ", ""]
     )
 
