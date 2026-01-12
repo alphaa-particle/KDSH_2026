@@ -7,15 +7,24 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import normalize as sk_normalize
 
 from bdh import BDHTokenizer, bdh_embed_text, load_ckpt
+from paths import DATA_DIR, INDEX_DIR, CKPT_DIR, DB_PATH
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-BASE_DIR = r"C:\Users\vaibh\Desktop\KDSH_Solution_2026\new_model"
-NOV_DIR = os.path.join(BASE_DIR, "data")
-DB_PATH = os.path.join(BASE_DIR, "my_novel_db")
+# BASE_DIR = r"C:\Users\vaibh\Desktop\KDSH_Solution_2026\new_model"
+# NOV_DIR = os.path.join(BASE_DIR, "data")
+# DB_PATH = os.path.join(BASE_DIR, "my_novel_db")
 COLLECTION_NAME = "novels_bdh"
 
-CKPT_DIR = os.path.join(BASE_DIR, "checkpoints")
-CKPT_LM = os.path.join(CKPT_DIR, "bdh_lm.pt") 
+# ---- Paths (portable) ----
+NOV_DIR = DATA_DIR
+CKPT_LM = os.path.join(CKPT_DIR, "bdh_lm.pt")
+
+OUT_INDEX_DIR = INDEX_DIR
+os.makedirs(OUT_INDEX_DIR, exist_ok=True)
+# -------------------------
+
+# CKPT_DIR = os.path.join(BASE_DIR, "checkpoints")
+# CKPT_LM = os.path.join(CKPT_DIR, "bdh_lm.pt") 
 
 NOVELS = {
     "In Search of the Castaways": os.path.join(NOV_DIR, "In search of the castaways.txt"),
@@ -26,7 +35,7 @@ NOVELS = {
 CHUNK_CHARS = 3500
 OVERLAP_CHARS = 1500
 
-OUT_INDEX_DIR = "indexes"
+# OUT_INDEX_DIR = "indexes"
 os.makedirs(OUT_INDEX_DIR, exist_ok=True)
 
 
