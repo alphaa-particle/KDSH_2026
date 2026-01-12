@@ -8,20 +8,34 @@ import pandas as pd
 from sklearn.model_selection import StratifiedKFold
 import numpy as np
 from bdh import BDH, BDHConfig, BDHTokenizer, bdh_embed_text, save_ckpt, load_ckpt
+from paths import DATA_DIR, INDEX_DIR, CKPT_DIR
+
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu") 
 
-BASE_DIR = r"C:\Users\vaibh\Desktop\KDSH_Solution_2026\new_model"
+# BASE_DIR = r"C:\Users\vaibh\Desktop\KDSH_Solution_2026\new_model"        #changed here due to normal run on any machine
 
-DATA_DIR = os.path.join(BASE_DIR, "data")
+# DATA_DIR = os.path.join(BASE_DIR, "data")
+# TRAIN_CSV = os.path.join(DATA_DIR, "train.csv")
+# NOV_DIR = os.path.join(BASE_DIR, "data")
+# CKPT_DIR = r"C:\Users\vaibh\Desktop\KDSH_Solution_2026\new_model\checkpoints"
+# os.makedirs(CKPT_DIR, exist_ok=True)
+
+# CKPT_LM = os.path.join(CKPT_DIR, "bdh_lm.pt")
+# ENSEMBLE_DIR = os.path.join(CKPT_DIR, "ensemble")
+# os.makedirs(ENSEMBLE_DIR, exist_ok=True)
+
+# ---- Paths (portable) ----
+
 TRAIN_CSV = os.path.join(DATA_DIR, "train.csv")
-NOV_DIR = os.path.join(BASE_DIR, "data")
-CKPT_DIR = r"C:\Users\vaibh\Desktop\KDSH_Solution_2026\new_model\checkpoints"
+NOV_DIR = DATA_DIR
+
 os.makedirs(CKPT_DIR, exist_ok=True)
 
 CKPT_LM = os.path.join(CKPT_DIR, "bdh_lm.pt")
 ENSEMBLE_DIR = os.path.join(CKPT_DIR, "ensemble")
 os.makedirs(ENSEMBLE_DIR, exist_ok=True)
+# ------------------------------------
 
 # ---- Pretrain (use your stable params) ----
 PRETRAIN_STEPS = 20000
@@ -36,7 +50,7 @@ LR = 3e-4                 # more stable on tiny data
 DROPOUT = 0.3
 SEEDS = [11, 22, 33, 44, 55]
 
-INDEX_DIR = "indexes"  # uses *_chunks.pt caches
+# INDEX_DIR = "indexes"  # uses *_chunks.pt caches
 # ------------------------------------------
 
 
