@@ -8,20 +8,29 @@ from sklearn.preprocessing import normalize as sk_normalize
 
 from bdh import BDHTokenizer, bdh_embed_text, load_ckpt
 from train import TrackBHead 
+from paths import DATA_DIR, INDEX_DIR, CKPT_DIR, DB_PATH
+
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # --- PATHS ---
-DB_PATH = r"C:\Users\vaibh\Desktop\KDSH_Solution_2026\new_model\my_novel_db"
-COLLECTION_NAME = "novels_bdh"
+# DB_PATH = r"C:\Users\vaibh\Desktop\KDSH_Solution_2026\new_model\my_novel_db"
+# COLLECTION_NAME = "novels_bdh"
 
-CKPT_DIR = r"C:\Users\vaibh\Desktop\KDSH_Solution_2026\new_model\checkpoints"
+# CKPT_DIR = r"C:\Users\vaibh\Desktop\KDSH_Solution_2026\new_model\checkpoints"
+# CKPT_LM = os.path.join(CKPT_DIR, "bdh_lm.pt")
+# ENSEMBLE_DIR = os.path.join(CKPT_DIR, "ensemble")
+
+# INDEX_DIR = "indexes"
+# TEST_CSV = os.path.join("data", "test.csv")
+# OUT_CSV = "submission.csv"
+COLLECTION_NAME = "novels_bdh"
 CKPT_LM = os.path.join(CKPT_DIR, "bdh_lm.pt")
 ENSEMBLE_DIR = os.path.join(CKPT_DIR, "ensemble")
 
-INDEX_DIR = "indexes"
-TEST_CSV = os.path.join("data", "test.csv")
-OUT_CSV = "submission.csv"
+
+TEST_CSV = os.path.join(DATA_DIR, "test.csv")
+OUT_CSV = "results.csv"
 
 # Configuration
 WIDE_N = 80
